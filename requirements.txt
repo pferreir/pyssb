@@ -1,0 +1,3 @@
+pynacl
+simplejson
+pytest

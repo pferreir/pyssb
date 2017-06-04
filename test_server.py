@@ -1,31 +1,36 @@
+import os
 from asyncio import get_event_loop
 from base64 import b64decode
 
-from ssb.keys import KeyPair
+import yaml
+from nacl.signing import SigningKey
+
 from ssb.packet_stream import PSServer
 
 
-priv_key = b64decode('--- your private key ---')
-
-
-async def main(loop):
-    await packet_stream.listen(loop)
+with open(os.path.expanduser('~/.ssb/secret')) as f:
+    config = yaml.load(f)
 
 
 async def on_connect(server):
-    await server.write('JSON', {"name": ["createHistoryStream"],
-                                "args": [{
-                                    "id": "@/Odg52x38pt7OivNnxK1Lm+H/+x6yV4DhMeXHBQRYc0=.ed25519",
-                                    "seq": 9,
-                                    "live": True,
-                                    "keys": False
-                                }],
-                                "type": "source"}, req=1)
-    print(await server.read().__anext__())
+    server.write('JSON', {
+        "name": ["createHistoryStream"],
+        "args": [{
+            "id": "@/Odg52x38pt7OivNnxK1Lm+H/+x6yV4DhMeXHBQRYc0=.ed25519",
+            "seq": 9,
+            "live": True,
+            "keys": False
+        }],
+        "type": "source"}, req=1)
+    print(await server.read())
+    server.write('JSON', {})
 
-packet_stream = PSServer('127.0.0.1', 8008, KeyPair(priv_key[:32]))
-packet_stream.on_connect(on_connect)
 loop = get_event_loop()
-loop.run_until_complete(main(loop))
+
+server_keypair = SigningKey(b64decode(config['private'][:-8])[:32])
+packet_stream = PSServer('127.0.0.1', 8008, server_keypair, loop=loop)
+packet_stream.on_connect(on_connect)
+packet_stream.listen()
+
 loop.run_forever()
 loop.close()

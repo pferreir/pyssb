@@ -1,7 +1,7 @@
 import struct
 from enum import Enum
 
-from .shs.socket import SHSClient, SHSServer
+from secret_handshake import SHSClient, SHSServer
 
 import simplejson
 
@@ -33,17 +33,25 @@ class PSMessage(object):
 
 class PSSocket(object):
     async def read(self):
-        while True:
-            try:
-                header = await self.connection.read().__anext__()
-                body = await self.connection.read().__anext__()
-                flags, length, req = struct.unpack('>BIi', header)
-                yield PSMessage(bool(flags & 0x08), bool(flags & 0x04), flags & 0x03, body)
-            except StopAsyncIteration:
-                await self.connection.disconnect()
-                break
+        try:
+            header = await self.connection.read()
+            if not header:
+                return
+            body = await self.connection.read()
+            flags, length, req = struct.unpack('>BIi', header)
+            return PSMessage(bool(flags & 0x08), bool(flags & 0x04), flags & 0x03, body)
+        except StopAsyncIteration:
+            await self.connection.disconnect()
+            return None
 
-    async def write(self, type_, data, req=0):
+    async def __aiter__(self):
+        while True:
+            data = await self.read()
+            if data is None:
+                return
+            yield data
+
+    def write(self, type_, data, req=0):
         type_ = PSMessageType[type_]
         if type_ == PSMessageType.JSON:
             data = simplejson.dumps(data)
@@ -51,27 +59,29 @@ class PSSocket(object):
         # XXX: Not yet handling flags that nicely
 
         header = struct.pack('>BIi', 0x08 | type_.value, len(data), req)
-        await self.connection.write(header)
-        await self.connection.write(data.encode('utf-8'))
+        self.connection.write(header)
+        self.connection.write(data.encode('utf-8'))
 
 
 class PSClient(PSSocket):
-    def __init__(self, host, port, client_kp, server_pub_key, ephemeral_key=None, application_key=None):
+    def __init__(self, host, port, client_kp, server_pub_key, ephemeral_key=None, application_key=None, loop=None):
         self.connection = SHSClient(host, port, client_kp, server_pub_key, ephemeral_key=ephemeral_key,
-                                    application_key=application_key)
+                                    application_key=application_key, loop=loop)
+        self.loop = loop
 
-    async def connect(self, loop=None):
-        await self.connection.connect(loop=loop)
+    def connect(self):
+        self.connection.connect()
 
 
 class PSServer(PSSocket):
-    def __init__(self, host, port, client_kp, application_key=None):
-        self.connection = SHSServer(host, port, client_kp, application_key=application_key)
+    def __init__(self, host, port, client_kp, application_key=None, loop=None):
+        self.connection = SHSServer(host, port, client_kp, application_key=application_key, loop=loop)
+        self.loop = loop
 
-    async def listen(self, loop=None):
-        await self.connection.listen(loop=loop)
+    def listen(self):
+        self.connection.listen()
 
-    def on_connect(self, handler):
+    def on_connect(self, cb):
         async def _on_connect():
-            await handler(self)
-        self.connection._on_connect = _on_connect
+            await cb(self)
+        self.connection.on_connect(_on_connect)

@@ -1,10 +1,13 @@
+import logging
 import os
-from asyncio import get_event_loop
+from asyncio import get_event_loop, gather, ensure_future
 from base64 import b64decode
 
 import yaml
+from colorlog import ColoredFormatter
 from nacl.signing import SigningKey
 
+from ssb.api import MuxRPCAPI
 from ssb.packet_stream import PSClient
 
 
@@ -12,17 +15,58 @@ with open(os.path.expanduser('~/.ssb/secret')) as f:
     config = yaml.load(f)
 
 
+api = MuxRPCAPI()
+
+
+@api.define('createHistoryStream')
+def create_history_stream(connection, msg):
+    print('create_history_stream', msg)
+    # msg = PSMessage(PSMessageType.JSON, True, stream=True, end_err=True, req=-req)
+    # connection.write(msg)
+
+
+@api.define('blobs.createWants')
+def create_wants(connection, msg):
+    print('create_wants', msg)
+
+
+async def main():
+    handler = packet_stream.stream({
+        'name': 'createHistoryStream',
+        'args': [{
+            'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
+            'seq': 1,
+            'live': False,
+            'keys': False
+        }],
+        'type': 'source'
+    })
+    async for msg in handler:
+        print('> RESPONSE:', msg)
+
+
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+# create formatter
+formatter = ColoredFormatter('%(log_color)s%(levelname)s%(reset)s:%(bold_white)s%(name)s%(reset)s - '
+                             '%(cyan)s%(message)s%(reset)s')
+
+# add formatter to ch
+ch.setFormatter(formatter)
+
+# add ch to logger
+logger = logging.getLogger('packet_stream')
+logger.setLevel(logging.DEBUG)
+logger.addHandler(ch)
+
 server_pub_key = b64decode(config['public'][:-8])
 
-
-async def main(loop):
-    async for msg in packet_stream:
-        print(msg)
-    print('bye')
-
 loop = get_event_loop()
-
 packet_stream = PSClient('127.0.0.1', 8008, SigningKey.generate(), server_pub_key, loop=loop)
 packet_stream.connect()
-loop.run_until_complete(main(loop))
+api.add_connection(packet_stream)
+
+loop.run_until_complete(gather(ensure_future(api), main()))
 loop.close()

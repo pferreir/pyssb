@@ -47,7 +47,12 @@ async def main():
     handler.send(struct.pack('l', int(time.time() * 1000)), msg_type=PSMessageType.BUFFER)
     async for msg in handler:
         print('> RESPONSE:', msg)
+        handler.send(True, end=True)
+        break
 
+    handler = api.call('blobs.add', [], 'sink')
+    handler.send(b'dead0beef', msg_type=PSMessageType.BUFFER)
+    handler.send(True, end=True)
 
 # create console handler and set level to debug
 ch = logging.StreamHandler()

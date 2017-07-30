@@ -22,8 +22,8 @@ class MuxRPCSourceHandler(object):
 
 class MuxRPCSinkHandlerMixin(object):
 
-    def send(self, msg, msg_type=PSMessageType.JSON):
-        self.connection.send(msg, stream=True, msg_type=msg_type, req=self.req)
+    def send(self, msg, msg_type=PSMessageType.JSON, end=False):
+        self.connection.send(msg, stream=True, msg_type=msg_type, req=self.req, end_err=end)
 
 
 class MuxRPCDuplexHandler(MuxRPCSinkHandlerMixin, MuxRPCSourceHandler):

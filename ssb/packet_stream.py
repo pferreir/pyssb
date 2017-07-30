@@ -1,6 +1,6 @@
 import logging
 import struct
-from asyncio import Queue
+from asyncio import Lock, Queue
 from enum import Enum
 from time import time
 
@@ -38,6 +38,30 @@ class PSStreamHandler(object):
             yield elem
 
 
+class PSRequestHandler(object):
+    def __init__(self, req):
+        super(PSRequestHandler).__init__()
+        self.req = req
+        self.lock = Lock()
+        self._msg = None
+
+    async def process(self, msg):
+        self._msg = msg
+        self.lock.release()
+
+    async def stop(self):
+        self._msg = None
+        if self.lock.locked():
+            self.lock.release()
+
+    def __await__(self):
+        yield from self.lock.acquire()
+        # try second acquire, which will only be granted
+        # when 'process' is called
+        yield from self.lock.acquire()
+        return self._msg
+
+
 class PSMessage(object):
 
     @classmethod
@@ -57,7 +81,8 @@ class PSMessage(object):
         if self.type == PSMessageType.TEXT:
             return self.body.encode('utf-8')
         elif self.type == PSMessageType.JSON:
-            return simplejson.dumps(self.body)
+            return simplejson.dumps(self.body).encode('utf-8')
+        return self.body
 
     def __init__(self, type_, body, stream, end_err, req=None):
         self.stream = stream
@@ -106,34 +131,48 @@ class PSConnection(object):
                 return
             if msg.req < 0:
                 t, handler = self._event_map[-msg.req]
+                await handler.process(msg)
+                logger.info('RESPONSE [%d]: %r', -msg.req, msg)
                 if msg.end_err:
                     await handler.stop()
                     del self._event_map[-msg.req]
-                    logger.info('REQ: %d END', msg.req)
-                else:
-                    logger.info('REQ: %d ELEM: %r', msg.req, msg)
-                    await handler.process(msg)
+                    logger.info('RESPONSE [%d]: EOS', -msg.req)
             else:
                 yield msg
 
-    def write(self, msg):
-        logger.info('SEND: %r (%d)', msg, msg.req)
+    def _write(self, msg):
+        logger.info('SEND [%d]: %r', msg.req, msg)
         header = struct.pack('>BIi', (int(msg.stream) << 3) | (int(msg.end_err) << 2) | msg.type.value, len(msg.data),
                              msg.req)
         self.connection.write(header)
-        self.connection.write(msg.data.encode('utf-8'))
-        logger.info('WRITE: %s', header)
+        self.connection.write(msg.data)
+        logger.debug('WRITE HDR: %s', header)
+        logger.debug('WRITE DATA: %s', msg.data)
 
     def on_connect(self, cb):
         async def _on_connect():
             await cb()
         self.connection.on_connect(_on_connect)
 
-    def stream(self, data):
-        msg = PSMessage(PSMessageType.JSON, data, stream=True, end_err=False, req=self.req_counter)
-        self.write(msg)
-        handler = PSStreamHandler(self.req_counter)
+    def send(self, data, msg_type=PSMessageType.JSON, stream=False, end_err=False, req=None):
+        update_counter = False
+        if req is None:
+            update_counter = True
+            req = self.req_counter
+
+        msg = PSMessage(msg_type, data, stream=stream, end_err=end_err, req=req)
+
+        # send request
+        self._write(msg)
+
+        if stream:
+            handler = PSStreamHandler(self.req_counter)
+        else:
+            handler = PSRequestHandler(self.req_counter)
         self.register_handler(handler)
+
+        if update_counter:
+            self.req_counter += 1
         return handler
 
 

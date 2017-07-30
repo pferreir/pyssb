@@ -1,5 +1,54 @@
 from functools import wraps
 
+from ssb.packet_stream import PSMessageType
+
+
+class MuxRPCRequestHandler(object):
+    def __init__(self, ps_handler):
+        self.ps_handler = ps_handler
+
+    def __await__(self):
+        return self.ps_handler.__await__()
+
+
+class MuxRPCSourceHandler(object):
+    def __init__(self, ps_handler):
+        self.ps_handler = ps_handler
+
+    async def __aiter__(self):
+        async for msg in self.ps_handler:
+            yield msg
+
+
+class MuxRPCSinkHandlerMixin(object):
+
+    def send(self, msg, msg_type=PSMessageType.JSON):
+        self.connection.send(msg, stream=True, msg_type=msg_type, req=self.req)
+
+
+class MuxRPCDuplexHandler(MuxRPCSinkHandlerMixin, MuxRPCSourceHandler):
+    def __init__(self, ps_handler, connection, req):
+        super(MuxRPCDuplexHandler, self).__init__(ps_handler)
+        self.connection = connection
+        self.req = req
+
+
+class MuxRPCSinkHandler(MuxRPCSinkHandlerMixin):
+    def __init__(self, connection, req):
+        self.connection = connection
+        self.req = req
+
+
+def _get_appropriate_api_handler(type_, connection, ps_handler, req):
+    if type_ in {'sync', 'async'}:
+        return MuxRPCRequestHandler(ps_handler)
+    elif type_ == 'source':
+        return MuxRPCSourceHandler(ps_handler)
+    elif type_ == 'sink':
+        return MuxRPCSinkHandler(connection, req)
+    elif type_ == 'duplex':
+        return MuxRPCDuplexHandler(ps_handler, connection, req)
+
 
 class MuxRPCAPIException(Exception):
     pass
@@ -19,6 +68,18 @@ class MuxRPCRequest(object):
         return '<MuxRPCRequest {0.name} {0.args}>'.format(self)
 
 
+class MuxRPCMessage(object):
+    @classmethod
+    def from_message(cls, message):
+        return cls(message.body)
+
+    def __init__(self, body):
+        self.body = body
+
+    def __repr__(self):
+        return '<MuxRPCMessage {0.body}}>'.format(self)
+
+
 class MuxRPCAPI(object):
     def __init__(self):
         self.handlers = {}
@@ -26,9 +87,11 @@ class MuxRPCAPI(object):
 
     async def __await__(self):
         async for req_message in self.connection:
+            body = req_message.body
             if req_message is None:
                 return
-            self.process(self.connection, MuxRPCRequest.from_message(req_message))
+            if isinstance(body, dict) and body.get('name'):
+                self.process(self.connection, MuxRPCRequest.from_message(req_message))
 
     def add_connection(self, connection):
         self.connection = connection
@@ -48,3 +111,12 @@ class MuxRPCAPI(object):
         if not handler:
             raise MuxRPCAPIException('Method {} not found!'.format(request.name))
         handler(connection, request)
+
+    def call(self, name, args, type_='sync'):
+        old_counter = self.connection.req_counter
+        ps_handler = self.connection.send({
+            'name': name.split('.'),
+            'args': args,
+            'type': type_
+        }, stream=type_ in {'sink', 'source', 'duplex'})
+        return _get_appropriate_api_handler(type_, self.connection, ps_handler, old_counter)

@@ -1,5 +1,7 @@
 import logging
 import os
+import struct
+import time
 from asyncio import get_event_loop, gather, ensure_future
 from base64 import b64decode
 
@@ -8,7 +10,7 @@ from colorlog import ColoredFormatter
 from nacl.signing import SigningKey
 
 from ssb.api import MuxRPCAPI
-from ssb.packet_stream import PSClient
+from ssb.packet_stream import PSClient, PSMessageType
 
 
 with open(os.path.expanduser('~/.ssb/secret')) as f:
@@ -31,16 +33,18 @@ def create_wants(connection, msg):
 
 
 async def main():
-    handler = packet_stream.stream({
-        'name': 'createHistoryStream',
-        'args': [{
-            'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
-            'seq': 1,
-            'live': False,
-            'keys': False
-        }],
-        'type': 'source'
-    })
+    async for msg in api.call('createHistoryStream', [{
+        'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
+        'seq': 1,
+        'live': False,
+        'keys': False
+    }], 'source'):
+        print('> RESPONSE:', msg)
+
+    print('> RESPONSE:', await api.call('whoami', [], 'sync'))
+
+    handler = api.call('gossip.ping', [], 'duplex')
+    handler.send(struct.pack('l', int(time.time() * 1000)), msg_type=PSMessageType.BUFFER)
     async for msg in handler:
         print('> RESPONSE:', msg)
 
@@ -62,9 +66,11 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(ch)
 
 server_pub_key = b64decode(config['public'][:-8])
+server_prv_key = b64decode(config['private'][:-8])
+sign = SigningKey(server_prv_key[:32])
 
 loop = get_event_loop()
-packet_stream = PSClient('127.0.0.1', 8008, SigningKey.generate(), server_pub_key, loop=loop)
+packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
 packet_stream.connect()
 api.add_connection(packet_stream)
 

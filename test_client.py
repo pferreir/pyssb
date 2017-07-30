@@ -9,7 +9,7 @@ import yaml
 from colorlog import ColoredFormatter
 from nacl.signing import SigningKey
 
-from ssb.api import MuxRPCAPI
+from ssb.muxrpc import MuxRPCAPI
 from ssb.packet_stream import PSClient, PSMessageType
 
 

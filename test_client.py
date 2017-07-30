@@ -50,9 +50,10 @@ async def main():
         handler.send(True, end=True)
         break
 
-    handler = api.call('blobs.add', [], 'sink')
-    handler.send(b'dead0beef', msg_type=PSMessageType.BUFFER)
-    handler.send(True, end=True)
+    async for data in api.call('blobs.get', ['&/6q7JOKythgnnzoBI5xxvotCr5HeFkAIZSAuqHiZfLw=.sha256'], 'source'):
+        if data.type.name == 'BUFFER':
+            with open('./funny_img.png', 'wb') as f:
+                f.write(data.data)
 
 # create console handler and set level to debug
 ch = logging.StreamHandler()

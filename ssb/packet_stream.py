@@ -110,7 +110,7 @@ class PSConnection(object):
     def is_connected(self):
         return self._connected
 
-    async def read(self):
+    async def _read(self):
         try:
             header = await self.connection.read()
             if not header:
@@ -130,6 +130,21 @@ class PSConnection(object):
             await self.connection.disconnect()
             return None
 
+    async def read(self):
+        msg = await self._read()
+        if not msg:
+            return None
+        # check whether it's a reply and handle accordingly
+        if msg.req < 0:
+            t, handler = self._event_map[-msg.req]
+            await handler.process(msg)
+            logger.info('RESPONSE [%d]: %r', -msg.req, msg)
+            if msg.end_err:
+                await handler.stop()
+                del self._event_map[-msg.req]
+                logger.info('RESPONSE [%d]: EOS', -msg.req)
+        return msg
+
     async def __await__(self):
         async for data in self:
             logger.info('RECV: %r', data)
@@ -144,15 +159,8 @@ class PSConnection(object):
             msg = await self.read()
             if not msg:
                 return
-            if msg.req < 0:
-                t, handler = self._event_map[-msg.req]
-                await handler.process(msg)
-                logger.info('RESPONSE [%d]: %r', -msg.req, msg)
-                if msg.end_err:
-                    await handler.stop()
-                    del self._event_map[-msg.req]
-                    logger.info('RESPONSE [%d]: EOS', -msg.req)
-            else:
+            # filter out replies
+            if msg.req >= 0:
                 yield msg
 
     def _write(self, msg):

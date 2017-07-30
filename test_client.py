@@ -9,7 +9,7 @@ import yaml
 from colorlog import ColoredFormatter
 from nacl.signing import SigningKey
 
-from ssb.muxrpc import MuxRPCAPI
+from ssb.muxrpc import MuxRPCAPI, MuxRPCAPIException
 from ssb.packet_stream import PSClient, PSMessageType
 
 
@@ -41,7 +41,10 @@ async def main():
     }], 'source'):
         print('> RESPONSE:', msg)
 
-    print('> RESPONSE:', await api.call('whoami', [], 'sync'))
+    try:
+        print('> RESPONSE:', await api.call('whoami', [], 'sync'))
+    except MuxRPCAPIException as e:
+        print(e)
 
     handler = api.call('gossip.ping', [], 'duplex')
     handler.send(struct.pack('l', int(time.time() * 1000)), msg_type=PSMessageType.BUFFER)
@@ -72,11 +75,11 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(ch)
 
 server_pub_key = b64decode(config['public'][:-8])
-server_prv_key = b64decode(config['private'][:-8])
-sign = SigningKey(server_prv_key[:32])
+# server_prv_key = b64decode(config['private'][:-8])
+# sign = SigningKey(server_prv_key[:32])
 
 loop = get_event_loop()
-packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
+packet_stream = PSClient('127.0.0.1', 8008, SigningKey.generate(), server_pub_key, loop=loop)
 packet_stream.connect()
 api.add_connection(packet_stream)
 

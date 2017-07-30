@@ -3,21 +3,38 @@ from functools import wraps
 from ssb.packet_stream import PSMessageType
 
 
-class MuxRPCRequestHandler(object):
+class MuxRPCAPIException(Exception):
+    pass
+
+
+class MuxRPCHandler(object):
+    def check_message(self, msg):
+        body = msg.body
+        if isinstance(body, dict) and 'name' in body and body['name'] == 'Error':
+            raise MuxRPCAPIException(body['message'])
+
+
+class MuxRPCRequestHandler(MuxRPCHandler):
     def __init__(self, ps_handler):
         self.ps_handler = ps_handler
 
     def __await__(self):
-        return self.ps_handler.__await__()
+        msg = (yield from self.ps_handler.__await__())
+        self.check_message(msg)
+        return msg
 
 
-class MuxRPCSourceHandler(object):
+class MuxRPCSourceHandler(MuxRPCHandler):
     def __init__(self, ps_handler):
         self.ps_handler = ps_handler
 
     async def __aiter__(self):
         async for msg in self.ps_handler:
-            yield msg
+            try:
+                self.check_message(msg)
+                yield msg
+            except MuxRPCAPIException:
+                raise
 
 
 class MuxRPCSinkHandlerMixin(object):
@@ -33,7 +50,7 @@ class MuxRPCDuplexHandler(MuxRPCSinkHandlerMixin, MuxRPCSourceHandler):
         self.req = req
 
 
-class MuxRPCSinkHandler(MuxRPCSinkHandlerMixin):
+class MuxRPCSinkHandler(MuxRPCHandler, MuxRPCSinkHandlerMixin):
     def __init__(self, connection, req):
         self.connection = connection
         self.req = req
@@ -48,10 +65,6 @@ def _get_appropriate_api_handler(type_, connection, ps_handler, req):
         return MuxRPCSinkHandler(connection, req)
     elif type_ == 'duplex':
         return MuxRPCDuplexHandler(ps_handler, connection, req)
-
-
-class MuxRPCAPIException(Exception):
-    pass
 
 
 class MuxRPCRequest(object):
@@ -113,6 +126,8 @@ class MuxRPCAPI(object):
         handler(connection, request)
 
     def call(self, name, args, type_='sync'):
+        if not self.connection.is_connected:
+            raise Exception('not connected')
         old_counter = self.connection.req_counter
         ps_handler = self.connection.send({
             'name': name.split('.'),

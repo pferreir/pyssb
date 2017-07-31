@@ -3,7 +3,8 @@ from collections import OrderedDict
 
 import pytest
 
-from ssb.keys import KeyPair, Message
+from ssb.feed import Message
+from ssb.keys import KeyPair
 
 
 @pytest.fixture()

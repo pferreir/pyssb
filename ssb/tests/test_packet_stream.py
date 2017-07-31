@@ -3,7 +3,7 @@ from asyncio import gather
 from asynctest import patch
 from nacl.signing import SigningKey
 
-from ssb.packet_stream import PSClient, PSMessageType
+from ssb.packet_stream import PSClient, PSServer, PSMessageType
 
 
 async def _collect_messages(generator):
@@ -28,11 +28,15 @@ MSG_BODY_2 = (b'{"previous":"%iQRhPyqmNLpGaO1Tpm1I22jqnUEwRwkCTDbwAGtM+lY=.sha25
               b'mAkqqMwFWfP+eBIbc7DZ835er6r6h9CwAg==.sig.ed25519"}')
 
 
-class MockConnection(object):
-    def __init__(self):
+class MockSHSSocket(object):
+    def __init__(self, *args, **kwargs):
         self.input = []
         self.output = []
-        self.connected = False
+        self.is_connected = False
+        self._on_connect = []
+
+    def on_connect(self, cb):
+        self._on_connect.append(cb)
 
     async def read(self):
         if not self.input:
@@ -51,38 +55,50 @@ class MockConnection(object):
                 break
             yield self.output.pop(0)
 
-    async def disconnect(self):
-        self.connected = False
+    def disconnect(self):
+        self.is_connected = False
+
+    def _set_connected(self):
+        self.is_connected = True
+        for cb in self._on_connect:
+            self.event_loop.run_until_complete(cb())
+
+
+class MockSHSClient(MockSHSSocket):
+    connect = MockSHSSocket._set_connected
+
+
+class MockSHSServer(MockSHSSocket):
+    listen = MockSHSSocket._set_connected
 
 
 @pytest.fixture
-def ps_client(monkeypatch):
-    def mock_connect():
-        client._connected = True
-        connection.connected = True
-    client = PSClient('fake.local', 1000, SigningKey.generate(), b'\00' * 32)
-
-    connection = MockConnection()
-    monkeypatch.setattr(client, 'connect', mock_connect)
-    monkeypatch.setattr(client, 'connection', connection)
+def ps_client(event_loop):
+    client = PSClient('fake.local', 1000, SigningKey.generate(), b'\00' * 32, socket_class=MockSHSClient)
+    client.connection.event_loop = event_loop
     client.connect()
+    return client
 
-    return client, connection
+
+@pytest.fixture
+def ps_server(event_loop):
+    server = PSServer('fake.local', 1000, SigningKey.generate(), socket_class=MockSHSServer)
+    server.connection.event_loop = event_loop
+    server.listen()
+    return server
 
 
 @pytest.mark.asyncio
 async def test_message_decoding(ps_client):
-    client, connection = ps_client
+    assert ps_client.is_connected
 
-    assert client.is_connected
-
-    connection.feed([
+    ps_client.connection.feed([
         b'\n\x00\x00\x00\x9a\x00\x00\x04\xfb',
         b'{"name":["createHistoryStream"],"args":[{"id":"@omgyp7Pnrw+Qm0I6T6Fh5VvnKmodMXwnxTIesW2DgMg=.ed25519",'
         b'"seq":10,"live":true,"keys":false}],"type":"source"}'
     ])
 
-    messages = (await _collect_messages(client))
+    messages = (await _collect_messages(ps_client))
     assert len(messages) == 1
     assert messages[0].type == PSMessageType.JSON
     assert messages[0].body == {
@@ -101,11 +117,9 @@ async def test_message_decoding(ps_client):
 
 @pytest.mark.asyncio
 async def test_message_encoding(ps_client):
-    client, connection = ps_client
+    assert ps_client.is_connected
 
-    assert client.is_connected
-
-    client.send({
+    ps_client.send({
         'name': ['createHistoryStream'],
         'args': [{
             'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
@@ -119,17 +133,16 @@ async def test_message_encoding(ps_client):
     body = (b'{"name": ["createHistoryStream"], "args": [{"id": "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519"'
             b', "seq": 1, "live": false, "keys": false}], "type": "source"}')
 
-    assert list(connection.get_output()) == [b'\x0a\x00\x00\x00\xa6\x00\x00\x00\x01', body]
+    assert list(ps_client.connection.get_output()) == [b'\x0a\x00\x00\x00\xa6\x00\x00\x00\x01', body]
 
 
 @pytest.mark.asyncio
-async def test_message_source(ps_client, mocker):
-    client, connection = ps_client
-    mocker.patch.object(client, 'register_handler', wraps=client.register_handler)
+async def test_message_stream(ps_client, mocker):
+    mocker.patch.object(ps_client, 'register_handler', wraps=ps_client.register_handler)
 
-    assert client.is_connected
+    assert ps_client.is_connected
 
-    client.send({
+    ps_client.send({
         'name': ['createHistoryStream'],
         'args': [{
             'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
@@ -140,22 +153,22 @@ async def test_message_source(ps_client, mocker):
         'type': 'source'
     }, stream=True)
 
-    assert client.req_counter == 2
-    assert client.register_handler.call_count == 1
-    handler = list(client._event_map.values())[0][1]
+    assert ps_client.req_counter == 2
+    assert ps_client.register_handler.call_count == 1
+    handler = list(ps_client._event_map.values())[0][1]
 
     with patch.object(handler, 'process') as mock_process:
-        connection.feed([b'\n\x00\x00\x02\xc5\xff\xff\xff\xff', MSG_BODY_1])
-        msg = await client.read()
+        ps_client.connection.feed([b'\n\x00\x00\x02\xc5\xff\xff\xff\xff', MSG_BODY_1])
+        msg = await ps_client.read()
         assert mock_process.call_count == 1
 
         # responses have negative req
         assert msg.req == -1
         assert msg.body['previous'] == '%KTGP6W8vF80McRAZHYDWuKOD0KlNyKSq6Gb42iuV7Iw=.sha256'
 
-        assert client.req_counter == 2
+        assert ps_client.req_counter == 2
 
-    stream_handler = client.send({
+    stream_handler = ps_client.send({
         'name': ['createHistoryStream'],
         'args': [{
             'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
@@ -166,16 +179,16 @@ async def test_message_source(ps_client, mocker):
         'type': 'source'
     }, stream=True)
 
-    assert client.req_counter == 3
-    assert client.register_handler.call_count == 2
-    handler = list(client._event_map.values())[1][1]
+    assert ps_client.req_counter == 3
+    assert ps_client.register_handler.call_count == 2
+    handler = list(ps_client._event_map.values())[1][1]
 
     with patch.object(handler, 'process', wraps=handler.process) as mock_process:
-        connection.feed([b'\n\x00\x00\x02\xc5\xff\xff\xff\xfe', MSG_BODY_1, b'\x0e\x00\x00\x023\xff\xff\xff\xfe',
-                         MSG_BODY_2])
+        ps_client.connection.feed([b'\n\x00\x00\x02\xc5\xff\xff\xff\xfe', MSG_BODY_1,
+                                   b'\x0e\x00\x00\x023\xff\xff\xff\xfe', MSG_BODY_2])
 
         # execute both message polling and response handling loops
-        collected, handled = await gather(_collect_messages(client), _collect_messages(stream_handler))
+        collected, handled = await gather(_collect_messages(ps_client), _collect_messages(stream_handler))
 
         # No messages collected, since they're all responses
         assert collected == []
@@ -185,3 +198,33 @@ async def test_message_source(ps_client, mocker):
         for msg in handled:
             # responses have negative req
             assert msg.req == -2
+
+
+@pytest.mark.asyncio
+async def test_message_request(ps_server, mocker):
+    mocker.patch.object(ps_server, 'register_handler', wraps=ps_server.register_handler)
+
+    assert ps_server.is_connected
+
+    ps_server.send({
+        'name': ['whoami'],
+        'args': []
+    })
+
+    assert (list(ps_server.connection.get_output()) ==
+            [b'\x02\x00\x00\x00 \x00\x00\x00\x01', b'{"name": ["whoami"], "args": []}'])
+
+    assert ps_server.req_counter == 2
+    assert ps_server.register_handler.call_count == 1
+    handler = list(ps_server._event_map.values())[0][1]
+
+    with patch.object(handler, 'process') as mock_process:
+        ps_server.connection.feed([b'\x02\x00\x00\x00>\xff\xff\xff\xff',
+                                   b'{"id":"@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519"}'])
+        msg = await ps_server.read()
+        assert mock_process.call_count == 1
+
+        # responses have negative req
+        assert msg.req == -1
+        assert msg.body['id'] == '@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519'
+        assert ps_server.req_counter == 2

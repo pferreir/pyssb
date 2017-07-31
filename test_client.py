@@ -75,11 +75,11 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(ch)
 
 server_pub_key = b64decode(config['public'][:-8])
-# server_prv_key = b64decode(config['private'][:-8])
-# sign = SigningKey(server_prv_key[:32])
+server_prv_key = b64decode(config['private'][:-8])
+sign = SigningKey(server_prv_key[:32])
 
 loop = get_event_loop()
-packet_stream = PSClient('127.0.0.1', 8008, SigningKey.generate(), server_pub_key, loop=loop)
+packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
 packet_stream.connect()
 api.add_connection(packet_stream)
 

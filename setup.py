@@ -34,7 +34,8 @@ tests_require = [
     'pytest-cov>=1.8.0',
     'pytest>=3.1.1',
     'pytest-asyncio==0.6.0',
-    'asynctest==0.10.0'
+    'asynctest==0.10.0',
+    'pytest-mock==1.6.2'
 ]
 
 extras_require = {

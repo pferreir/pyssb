@@ -207,8 +207,8 @@ class PSClient(PSConnection):
         self.connection.on_connect(self._on_connect)
         self.loop = loop
 
-    def connect(self):
-        self.connection.connect()
+    async def connect(self):
+        await self.connection.connect()
 
 
 class PSServer(PSConnection):

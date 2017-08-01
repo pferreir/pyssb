@@ -15,7 +15,7 @@ with open(os.path.expanduser('~/.ssb/secret')) as f:
 
 
 async def on_connect():
-    loop.create_task(ensure_future(packet_stream))
+    ensure_future(packet_stream, loop=loop)
 
 # create console handler and set level to debug
 ch = logging.StreamHandler()

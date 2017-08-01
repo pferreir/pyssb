@@ -80,7 +80,7 @@ sign = SigningKey(server_prv_key[:32])
 
 loop = get_event_loop()
 packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
-packet_stream.connect()
+loop.run_until_complete(packet_stream.connect())
 api.add_connection(packet_stream)
 
 loop.run_until_complete(gather(ensure_future(api), main()))

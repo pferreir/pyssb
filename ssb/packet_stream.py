@@ -30,12 +30,15 @@ class PSStreamHandler(object):
     async def stop(self):
         await self.queue.put(None)
 
-    async def __aiter__(self):
-        while True:
-            elem = await self.queue.get()
-            if not elem:
-                return
-            yield elem
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        elem = await self.queue.get()
+        if elem:
+            return elem
+        else:
+            raise StopAsyncIteration
 
 
 class PSRequestHandler(object):
@@ -154,14 +157,16 @@ class PSConnection(object):
     def register_handler(self, handler):
         self._event_map[handler.req] = (time(), handler)
 
-    async def __aiter__(self):
-        while True:
-            msg = await self.read()
-            if not msg:
-                return
-            # filter out replies
-            if msg.req >= 0:
-                yield msg
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        msg = await self.read()
+        if not msg:
+            raise StopAsyncIteration
+        # filter out replies
+        if msg.req >= 0:
+            return msg
 
     def _write(self, msg):
         logger.info('SEND [%d]: %r', msg.req, msg)

@@ -28,11 +28,14 @@ class MuxRPCSourceHandler(MuxRPCHandler):
     def __init__(self, ps_handler):
         self.ps_handler = ps_handler
 
-    async def __aiter__(self):
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
         async for msg in self.ps_handler:
             try:
                 self.check_message(msg)
-                yield msg
+                return msg
             except MuxRPCAPIException:
                 raise
 

@@ -47,6 +47,7 @@ extras_require['all'] = sum((lst for lst in extras_require.values()), [])
 
 install_requires = [
     'pynacl==1.1.2',
+    'simplejson==3.10.0',
     'secret-handshake'
 ]
 

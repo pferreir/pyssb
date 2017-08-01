@@ -61,7 +61,7 @@ packages = find_packages()
 
 setup(
     name='ssb',
-    version='0.1.0.dev1',
+    version='0.1.0.dev2',
     description=__doc__,
     long_description=(readme + '\n\n' + history),
     license='MIT',

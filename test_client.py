@@ -13,7 +13,12 @@ from ssb.muxrpc import MuxRPCAPI, MuxRPCAPIException
 from ssb.packet_stream import PSClient, PSMessageType
 
 
-with open(os.path.expanduser('~/.ssb/secret')) as f:
+if 'SSB_DIR' in os.environ:
+    SSB_DIR = os.environ['SSB_DIR']
+else:
+    SSB_DIR = os.path.expanduser('~/.ssb')
+
+with open(SSB_DIR + '/secret') as f:
     config = yaml.load(f)
 
 

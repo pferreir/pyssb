@@ -9,8 +9,12 @@ from nacl.signing import SigningKey
 
 from ssb.packet_stream import PSServer
 
+if 'SSB_DIR' in os.environ:
+    SSB_DIR = os.environ['SSB_DIR']
+else:
+    SSB_DIR = os.path.expanduser('~/.ssb')
 
-with open(os.path.expanduser('~/.ssb/secret')) as f:
+with open(SSB_DIR + '/secret') as f:
     config = yaml.load(f)
 
 

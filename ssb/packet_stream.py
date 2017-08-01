@@ -4,9 +4,10 @@ from asyncio import Event, Queue
 from enum import Enum
 from time import time
 
-from secret_handshake import SHSClient, SHSServer
-
 import simplejson
+from async_generator import async_generator, yield_
+
+from secret_handshake import SHSClient, SHSServer
 
 
 logger = logging.getLogger('packet_stream')
@@ -30,12 +31,13 @@ class PSStreamHandler(object):
     async def stop(self):
         await self.queue.put(None)
 
+    @async_generator
     async def __aiter__(self):
         while True:
             elem = await self.queue.get()
             if not elem:
                 return
-            yield elem
+            await yield_(elem)
 
 
 class PSRequestHandler(object):
@@ -154,6 +156,7 @@ class PSConnection(object):
     def register_handler(self, handler):
         self._event_map[handler.req] = (time(), handler)
 
+    @async_generator
     async def __aiter__(self):
         while True:
             msg = await self.read()
@@ -161,7 +164,7 @@ class PSConnection(object):
                 return
             # filter out replies
             if msg.req >= 0:
-                yield msg
+                await yield_(msg)
 
     def _write(self, msg):
         logger.info('SEND [%d]: %r', msg.req, msg)

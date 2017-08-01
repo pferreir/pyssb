@@ -1,5 +1,7 @@
 from functools import wraps
 
+from async_generator import async_generator, yield_
+
 from ssb.packet_stream import PSMessageType
 
 
@@ -28,11 +30,12 @@ class MuxRPCSourceHandler(MuxRPCHandler):
     def __init__(self, ps_handler):
         self.ps_handler = ps_handler
 
+    @async_generator
     async def __aiter__(self):
         async for msg in self.ps_handler:
             try:
                 self.check_message(msg)
-                yield msg
+                await yield_(msg)
             except MuxRPCAPIException:
                 raise
 

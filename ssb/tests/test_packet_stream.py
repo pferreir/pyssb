@@ -1,5 +1,7 @@
-import pytest
+import json
 from asyncio import ensure_future, gather, Event
+
+import pytest
 from asynctest import patch
 from nacl.signing import SigningKey
 

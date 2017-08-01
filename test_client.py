@@ -13,10 +13,6 @@ from ssb.muxrpc import MuxRPCAPI, MuxRPCAPIException
 from ssb.packet_stream import PSClient, PSMessageType
 
 
-with open(os.path.expanduser('~/.ssb/secret')) as f:
-    config = yaml.load(f)
-
-
 api = MuxRPCAPI()
 
 
@@ -32,7 +28,7 @@ def create_wants(connection, msg):
     print('create_wants', msg)
 
 
-async def main():
+async def test_client():
     async for msg in api.call('createHistoryStream', [{
         'id': "@1+Iwm79DKvVBqYKFkhT6fWRbAVvNNVH4F2BSxwhYmx8=.ed25519",
         'seq': 1,
@@ -58,30 +54,42 @@ async def main():
             with open('./funny_img.png', 'wb') as f:
                 f.write(data.data)
 
-# create console handler and set level to debug
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
 
-# create formatter
-formatter = ColoredFormatter('%(log_color)s%(levelname)s%(reset)s:%(bold_white)s%(name)s%(reset)s - '
-                             '%(cyan)s%(message)s%(reset)s')
+async def _main(packet_stream):
+    await packet_stream.connect()
+    api.add_connection(packet_stream)
+    await gather(ensure_future(api), test_client())
 
-# add formatter to ch
-ch.setFormatter(formatter)
 
-# add ch to logger
-logger = logging.getLogger('packet_stream')
-logger.setLevel(logging.DEBUG)
-logger.addHandler(ch)
+def main():
+    # create console handler and set level to debug
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
 
-server_pub_key = b64decode(config['public'][:-8])
-server_prv_key = b64decode(config['private'][:-8])
-sign = SigningKey(server_prv_key[:32])
+    # create formatter
+    formatter = ColoredFormatter('%(log_color)s%(levelname)s%(reset)s:%(bold_white)s%(name)s%(reset)s - '
+                                 '%(cyan)s%(message)s%(reset)s')
 
-loop = get_event_loop()
-packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
-loop.run_until_complete(packet_stream.connect())
-api.add_connection(packet_stream)
+    # add formatter to ch
+    ch.setFormatter(formatter)
 
-loop.run_until_complete(gather(ensure_future(api), main()))
-loop.close()
+    # add ch to logger
+    logger = logging.getLogger('packet_stream')
+    logger.setLevel(logging.INFO)
+    logger.addHandler(ch)
+
+    with open(os.path.expanduser('~/.ssb/secret')) as f:
+        config = yaml.load(f)
+
+    server_pub_key = b64decode(config['public'][:-8])
+    server_prv_key = b64decode(config['private'][:-8])
+    sign = SigningKey(server_prv_key[:32])
+
+    loop = get_event_loop()
+    packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
+    loop.run_until_complete(_main(packet_stream))
+    loop.close()
+
+
+if __name__ == '__main__':
+    main()

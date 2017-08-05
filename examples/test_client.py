@@ -1,16 +1,13 @@
 import logging
-import os
 import struct
 import time
 from asyncio import get_event_loop, gather, ensure_future
-from base64 import b64decode
 
-import yaml
 from colorlog import ColoredFormatter
-from nacl.signing import SigningKey
 
 from ssb.muxrpc import MuxRPCAPI, MuxRPCAPIException
 from ssb.packet_stream import PSClient, PSMessageType
+from ssb.util import load_ssb_secret
 
 
 api = MuxRPCAPI()
@@ -78,15 +75,10 @@ def main():
     logger.setLevel(logging.INFO)
     logger.addHandler(ch)
 
-    with open(os.path.expanduser('~/.ssb/secret')) as f:
-        config = yaml.load(f)
-
-    server_pub_key = b64decode(config['public'][:-8])
-    server_prv_key = b64decode(config['private'][:-8])
-    sign = SigningKey(server_prv_key[:32])
+    keypair = load_ssb_secret()['keypair']
 
     loop = get_event_loop()
-    packet_stream = PSClient('127.0.0.1', 8008, sign, server_pub_key, loop=loop)
+    packet_stream = PSClient('127.0.0.1', 8008, keypair, bytes(keypair.verify_key), loop=loop)
     loop.run_until_complete(_main(packet_stream))
     loop.close()
 

@@ -1,17 +1,10 @@
 import logging
-import os
 from asyncio import get_event_loop, ensure_future
-from base64 import b64decode
 
-import yaml
 from colorlog import ColoredFormatter
-from nacl.signing import SigningKey
 
 from ssb.packet_stream import PSServer
-
-
-with open(os.path.expanduser('~/.ssb/secret')) as f:
-    config = yaml.load(f)
+from ssb.util import load_ssb_secret
 
 
 async def on_connect():
@@ -36,8 +29,7 @@ logger.addHandler(ch)
 
 loop = get_event_loop()
 
-server_keypair = SigningKey(b64decode(config['private'][:-8])[:32])
-packet_stream = PSServer('127.0.0.1', 8008, server_keypair, loop=loop)
+packet_stream = PSServer('127.0.0.1', 8008, load_ssb_secret()['keypair'], loop=loop)
 packet_stream.on_connect(on_connect)
 packet_stream.listen()
 

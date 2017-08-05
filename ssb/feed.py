@@ -48,6 +48,9 @@ class Message(object):
     def __init__(self, feed, content, signature, sequence=1, timestamp=None, previous=None):
         self.feed = feed
         self.content = content
+
+        if signature is None:
+            raise ValueError("signature can't be None")
         self.signature = signature
 
         self.previous = previous
@@ -93,11 +96,23 @@ class Message(object):
 
 class LocalMessage(Message):
     def __init__(self, feed, content, signature=None, sequence=1, timestamp=None, previous=None):
-        super(LocalMessage, self).__init__(feed, content, signature, sequence, timestamp, previous)
-        if signature is None:
-            self.signature = self.sign()
+        self.feed = feed
+        self.content = content
 
-    def sign(self):
+        self.previous = previous
+        if self.previous:
+            self.sequence = self.previous.sequence + 1
+        else:
+            self.sequence = sequence
+
+        self.timestamp = int(time.time() * 1000) if timestamp is None else timestamp
+
+        if signature is None:
+            self.signature = self._sign()
+        else:
+            self.signature = signature
+
+    def _sign(self):
         # ensure ordering of keys and indentation of 2 characters, like ssb-keys
         data = dumps(self.to_dict(add_signature=False), indent=2)
         return (b64encode(bytes(self.feed.sign(data.encode('ascii')))) + b'.sig.ed25519').decode('ascii')

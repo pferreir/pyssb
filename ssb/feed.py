@@ -5,8 +5,14 @@ from hashlib import sha256
 
 from simplejson import dumps, loads
 
+from ssb.util import tag
+
 
 OrderedMsg = namedtuple('OrderedMsg', ('previous', 'author', 'sequence', 'timestamp', 'hash', 'content'))
+
+
+class NoPrivateKeyException(Exception):
+    pass
 
 
 def to_ordered(data):
@@ -14,24 +20,54 @@ def to_ordered(data):
     return OrderedDict((k, getattr(smsg, k)) for k in smsg._fields)
 
 
+class Feed(object):
+    def __init__(self, public_key):
+        self.public_key = public_key
+
+    @property
+    def id(self):
+        return tag(self.public_key).decode('ascii')
+
+    def sign(self):
+        raise NoPrivateKeyException('Cannot use remote identity to sign (no private key!)')
+
+
+class LocalFeed(Feed):
+    def __init__(self, private_key):
+        self.private_key = private_key
+
+    @property
+    def public_key(self):
+        return self.private_key.verify_key
+
+    def sign(self, msg):
+        return self.private_key.sign(msg).signature
+
+
 class Message(object):
-    def __init__(self, keypair, content, timestamp=None, previous=None):
-        self.keypair = keypair
+    def __init__(self, feed, content, signature, sequence=1, timestamp=None, previous=None):
+        self.feed = feed
         self.content = content
+        self.signature = signature
+
         self.previous = previous
-        self.sequence = (self.previous.sequence + 1) if self.previous else 1
+        if self.previous:
+            self.sequence = self.previous.sequence + 1
+        else:
+            self.sequence = sequence
+
         self.timestamp = int(time.time() * 1000) if timestamp is None else timestamp
 
     @classmethod
-    def parse(cls, data, keypair):
+    def parse(cls, data, feed):
         obj = loads(data, object_pairs_hook=OrderedDict)
-        msg = cls(keypair, obj['content'], timestamp=obj['timestamp'])
+        msg = cls(feed, obj['content'], timestamp=obj['timestamp'])
         return msg, obj['signature']
 
     def to_dict(self, add_signature=True):
         obj = to_ordered({
             'previous': self.previous.key if self.previous else None,
-            'author': self.keypair.tag,
+            'author': self.feed.id,
             'sequence': self.sequence,
             'timestamp': self.timestamp,
             'hash': 'sha256',
@@ -41,12 +77,6 @@ class Message(object):
         if add_signature:
             obj['signature'] = self.signature
         return obj
-
-    @property
-    def signature(self):
-        # ensure ordering of keys and indentation of 2 characters, like ssb-keys
-        data = dumps(self.to_dict(add_signature=False), indent=2)
-        return (b64encode(bytes(self.keypair.sign(data.encode('ascii')))) + b'.sig.ed25519').decode('ascii')
 
     def verify(self, signature):
         return self.signature == signature
@@ -59,3 +89,15 @@ class Message(object):
     @property
     def key(self):
         return '%' + self.hash
+
+
+class LocalMessage(Message):
+    def __init__(self, feed, content, signature=None, sequence=1, timestamp=None, previous=None):
+        super(LocalMessage, self).__init__(feed, content, signature, sequence, timestamp, previous)
+        if signature is None:
+            self.signature = self.sign()
+
+    def sign(self):
+        # ensure ordering of keys and indentation of 2 characters, like ssb-keys
+        data = dumps(self.to_dict(add_signature=False), indent=2)
+        return (b64encode(bytes(self.feed.sign(data.encode('ascii')))) + b'.sig.ed25519').decode('ascii')

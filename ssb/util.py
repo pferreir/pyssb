@@ -1,12 +1,17 @@
 import os
 import yaml
-from base64 import b64decode
+from base64 import b64decode, b64encode
 
 from nacl.signing import SigningKey
 
 
 class ConfigException(Exception):
     pass
+
+
+def tag(key):
+    """Create tag from publick key."""
+    return b'@' + b64encode(bytes(key)) + b'.ed25519'
 
 
 def load_ssb_secret():

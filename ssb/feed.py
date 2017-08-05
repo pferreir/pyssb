@@ -67,6 +67,9 @@ class Message(object):
         msg = cls(feed, obj['content'], timestamp=obj['timestamp'])
         return msg, obj['signature']
 
+    def serialize(self, add_signature=True):
+        return dumps(self.to_dict(add_signature=add_signature), indent=2).encode('utf-8')
+
     def to_dict(self, add_signature=True):
         obj = to_ordered({
             'previous': self.previous.key if self.previous else None,
@@ -86,7 +89,7 @@ class Message(object):
 
     @property
     def hash(self):
-        hash = sha256(dumps(self.to_dict(), indent=2).encode('ascii')).digest()
+        hash = sha256(self.serialize()).digest()
         return b64encode(hash).decode('ascii') + '.sha256'
 
     @property
@@ -114,5 +117,5 @@ class LocalMessage(Message):
 
     def _sign(self):
         # ensure ordering of keys and indentation of 2 characters, like ssb-keys
-        data = dumps(self.to_dict(add_signature=False), indent=2)
-        return (b64encode(bytes(self.feed.sign(data.encode('ascii')))) + b'.sig.ed25519').decode('ascii')
+        data = self.serialize(add_signature=False)
+        return (b64encode(bytes(self.feed.sign(data))) + b'.sig.ed25519').decode('ascii')

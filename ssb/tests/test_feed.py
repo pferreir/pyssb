@@ -4,7 +4,23 @@ from collections import OrderedDict
 import pytest
 from nacl.signing import SigningKey, VerifyKey
 
-from ssb.feed import LocalMessage, LocalFeed, Feed, Message
+from ssb.feed import LocalMessage, LocalFeed, Feed, Message, NoPrivateKeyException
+
+
+SERIALIZED_M1 = b"""{
+  "previous": null,
+  "author": "@I/4cyN/jPBbDsikbHzAEvmaYlaJK33lW3UhWjNXjyrU=.ed25519",
+  "sequence": 1,
+  "timestamp": 1495706260190,
+  "hash": "sha256",
+  "content": {
+    "type": "about",
+    "about": "@I/4cyN/jPBbDsikbHzAEvmaYlaJK33lW3UhWjNXjyrU=.ed25519",
+    "name": "neo",
+    "description": "The Chosen One"
+  },
+  "signature": "lPsQ9P10OgeyH6u0unFgiI2wV/RQ7Q2x2ebxnXYCzsJ055TBMXphRADTKhOMS2EkUxXQ9k3amj5fnWPudGxwBQ==.sig.ed25519"
+}"""
 
 
 @pytest.fixture()
@@ -32,6 +48,16 @@ def test_remote_feed():
     feed = Feed(VerifyKey(public))
     assert bytes(feed.public_key) == public
     assert feed.id == '@I/4cyN/jPBbDsikbHzAEvmaYlaJK33lW3UhWjNXjyrU=.ed25519'
+
+    m1 = Message(feed, OrderedDict([
+        ('type', 'about'),
+        ('about', feed.id),
+        ('name', 'neo'),
+        ('description', 'The Chosen One')
+    ]), 'foo', timestamp=1495706260190)
+
+    with pytest.raises(NoPrivateKeyException):
+        feed.sign(m1)
 
 
 def test_local_message(local_feed):
@@ -109,17 +135,15 @@ def test_serialize(local_feed):
         ('description', 'The Chosen One')
     ]), timestamp=1495706260190)
 
-    assert m1.serialize() == b"""{
-  "previous": null,
-  "author": "@I/4cyN/jPBbDsikbHzAEvmaYlaJK33lW3UhWjNXjyrU=.ed25519",
-  "sequence": 1,
-  "timestamp": 1495706260190,
-  "hash": "sha256",
-  "content": {
-    "type": "about",
-    "about": "@I/4cyN/jPBbDsikbHzAEvmaYlaJK33lW3UhWjNXjyrU=.ed25519",
-    "name": "neo",
-    "description": "The Chosen One"
-  },
-  "signature": "lPsQ9P10OgeyH6u0unFgiI2wV/RQ7Q2x2ebxnXYCzsJ055TBMXphRADTKhOMS2EkUxXQ9k3amj5fnWPudGxwBQ==.sig.ed25519"
-}"""
+    assert m1.serialize() == SERIALIZED_M1
+
+
+def test_parse(local_feed):
+    m1 = LocalMessage.parse(SERIALIZED_M1, local_feed)
+    assert m1.content == {
+        'type': 'about',
+        'about': local_feed.id,
+        'name': 'neo',
+        'description': 'The Chosen One'
+    }
+    assert m1.timestamp == 1495706260190

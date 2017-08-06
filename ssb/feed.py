@@ -28,7 +28,7 @@ class Feed(object):
     def id(self):
         return tag(self.public_key).decode('ascii')
 
-    def sign(self):
+    def sign(self, msg):
         raise NoPrivateKeyException('Cannot use remote identity to sign (no private key!)')
 
 
@@ -65,7 +65,7 @@ class Message(object):
     def parse(cls, data, feed):
         obj = loads(data, object_pairs_hook=OrderedDict)
         msg = cls(feed, obj['content'], timestamp=obj['timestamp'])
-        return msg, obj['signature']
+        return msg
 
     def serialize(self, add_signature=True):
         return dumps(self.to_dict(add_signature=add_signature), indent=2).encode('utf-8')

@@ -1,4 +1,4 @@
-import time
+import datetime
 from base64 import b64encode
 from collections import namedtuple, OrderedDict
 from hashlib import sha256
@@ -18,6 +18,10 @@ class NoPrivateKeyException(Exception):
 def to_ordered(data):
     smsg = OrderedMsg(**data)
     return OrderedDict((k, getattr(smsg, k)) for k in smsg._fields)
+
+
+def get_millis_1970():
+    return int(datetime.datetime.utcnow().timestamp() * 1000)
 
 
 class Feed(object):
@@ -59,7 +63,7 @@ class Message(object):
         else:
             self.sequence = sequence
 
-        self.timestamp = int(time.time() * 1000) if timestamp is None else timestamp
+        self.timestamp = get_millis_1970() if timestamp is None else timestamp
 
     @classmethod
     def parse(cls, data, feed):
@@ -108,7 +112,7 @@ class LocalMessage(Message):
         else:
             self.sequence = sequence
 
-        self.timestamp = int(time.time() * 1000) if timestamp is None else timestamp
+        self.timestamp = get_millis_1970() if timestamp is None else timestamp
 
         if signature is None:
             self.signature = self._sign()

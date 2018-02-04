@@ -5,8 +5,9 @@ from asyncio import get_event_loop, gather, ensure_future
 
 from colorlog import ColoredFormatter
 
+from secret_handshake.network import SHSClient
 from ssb.muxrpc import MuxRPCAPI, MuxRPCAPIException
-from ssb.packet_stream import PSClient, PSMessageType
+from ssb.packet_stream import PacketStream, PSMessageType
 from ssb.util import load_ssb_secret
 
 
@@ -52,13 +53,15 @@ async def test_client():
                 f.write(data.data)
 
 
-async def _main(packet_stream):
-    await packet_stream.connect()
+async def main():
+    client = SHSClient('127.0.0.1', 8008, keypair, bytes(keypair.verify_key))
+    packet_stream = PacketStream(client)
+    await client.open()
     api.add_connection(packet_stream)
     await gather(ensure_future(api), test_client())
 
 
-def main():
+if __name__ == '__main__':
     # create console handler and set level to debug
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
@@ -78,10 +81,5 @@ def main():
     keypair = load_ssb_secret()['keypair']
 
     loop = get_event_loop()
-    packet_stream = PSClient('127.0.0.1', 8008, keypair, bytes(keypair.verify_key), loop=loop)
-    loop.run_until_complete(_main(packet_stream))
+    loop.run_until_complete(main())
     loop.close()
-
-
-if __name__ == '__main__':
-    main()

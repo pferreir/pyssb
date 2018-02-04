@@ -99,18 +99,34 @@ class PSMessage(object):
                                                     '~' if self.stream else '', '!' if self.end_err else '')
 
 
-class PSConnection(object):
-    def __init__(self):
-        self._event_map = {}
+class PacketStream(object):
+    def __init__(self, connection):
+        self.connection = connection
         self.req_counter = 1
-        self._connected = False
+        self._event_map = {}
 
-    async def _on_connect(self):
-        self._connected = True
+    def register_handler(self, handler):
+        self._event_map[handler.req] = (time(), handler)
 
     @property
     def is_connected(self):
-        return self._connected
+        return self.connection.is_connected
+
+    @async_generator
+    async def __aiter__(self):
+        while True:
+            msg = await self.read()
+            if not msg:
+                return
+            # filter out replies
+            if msg.req >= 0:
+                await yield_(msg)
+
+    async def __await__(self):
+        async for data in self:
+            logger.info('RECV: %r', data)
+            if data is None:
+                return
 
     async def _read(self):
         try:
@@ -147,25 +163,6 @@ class PSConnection(object):
                 logger.info('RESPONSE [%d]: EOS', -msg.req)
         return msg
 
-    async def __await__(self):
-        async for data in self:
-            logger.info('RECV: %r', data)
-            if data is None:
-                return
-
-    def register_handler(self, handler):
-        self._event_map[handler.req] = (time(), handler)
-
-    @async_generator
-    async def __aiter__(self):
-        while True:
-            msg = await self.read()
-            if not msg:
-                return
-            # filter out replies
-            if msg.req >= 0:
-                await yield_(msg)
-
     def _write(self, msg):
         logger.info('SEND [%d]: %r', msg.req, msg)
         header = struct.pack('>BIi', (int(msg.stream) << 3) | (int(msg.end_err) << 2) | msg.type.value, len(msg.data),
@@ -199,32 +196,3 @@ class PSConnection(object):
     def disconnect(self):
         self._connected = False
         self.connection.disconnect()
-
-
-class PSClient(PSConnection):
-    def __init__(self, host, port, client_kp, server_pub_key, ephemeral_key=None, application_key=None, loop=None,
-                 socket_class=SHSClient):
-        super(PSClient, self).__init__()
-        self.connection = socket_class(host, port, client_kp, server_pub_key, ephemeral_key=ephemeral_key,
-                                       application_key=application_key, loop=loop)
-        self.connection.on_connect(self._on_connect)
-        self.loop = loop
-
-    async def connect(self):
-        await self.connection.connect()
-
-
-class PSServer(PSConnection):
-    def __init__(self, host, port, client_kp, application_key=None, loop=None, socket_class=SHSServer):
-        super(PSServer, self).__init__()
-        self.connection = socket_class(host, port, client_kp, application_key=application_key, loop=loop)
-        self.connection.on_connect(self._on_connect)
-        self.loop = loop
-
-    def on_connect(self, cb):
-        async def _on_connect():
-            await cb()
-        self.connection.on_connect(_on_connect)
-
-    def listen(self):
-        self.connection.listen()

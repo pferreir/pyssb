@@ -35,8 +35,7 @@ tests_require = [
     'pytest>=3.1.1',
     'pytest-asyncio==0.6.0',
     'asynctest==0.10.0',
-    'pytest-mock==1.6.2',
-    'async-generator==1.8'
+    'pytest-mock==1.6.2'
 ]
 
 extras_require = {
@@ -48,10 +47,11 @@ extras_require = {
 extras_require['all'] = sum((lst for lst in extras_require.values()), [])
 
 install_requires = [
+    'async-generator==1.8',
     'pynacl==1.1.2',
-    'simplejson==3.10.0',
     'PyYAML==3.12',
-    'secret-handshake'
+    'secret-handshake',
+    'simplejson==3.10.0'
 ]
 
 setup_requires = [

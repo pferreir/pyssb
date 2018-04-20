@@ -5,13 +5,15 @@ from colorlog import ColoredFormatter
 
 from secret_handshake import SHSServer
 from ssb.packet_stream import PacketStream
-from ssb.protocol.streams import stream_api
+from ssb.muxrpc import MuxRPCAPI
 from ssb.util import load_ssb_secret
+
+api = MuxRPCAPI()
 
 
 async def on_connect(conn):
     packet_stream = PacketStream(conn)
-    stream_api.add_connection(packet_stream)
+    api.add_connection(packet_stream)
 
     print('connect', conn)
     async for msg in packet_stream:

@@ -1,4 +1,1 @@
-pynacl
-simplejson
-pytest
-secret-handshake
+-r requirements/production.txt

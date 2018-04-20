@@ -47,10 +47,13 @@ async def test_client():
         handler.send(True, end=True)
         break
 
+    """
+    # TODO: save this blob, first.
     async for data in api.call('blobs.get', ['&/6q7JOKythgnnzoBI5xxvotCr5HeFkAIZSAuqHiZfLw=.sha256'], 'source'):
         if data.type.name == 'BUFFER':
             with open('./funny_img.png', 'wb') as f:
                 f.write(data.data)
+    """
 
 
 async def main():

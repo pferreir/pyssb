@@ -3,6 +3,7 @@ import struct
 from asyncio import Event, Queue
 from enum import Enum
 from time import time
+from math import ceil
 
 import simplejson
 from async_generator import async_generator, yield_
@@ -134,8 +135,9 @@ class PacketStream(object):
             if not header or header == b'\x00' * 9:
                 return
             flags, length, req = struct.unpack('>BIi', header)
+            logger.debug('flags=%s length=%s req=%s', flags, length, req)
 
-            n_packets = length // 4096 + 1
+            n_packets = ceil(length / 4096)
 
             body = b''
             for n in range(n_packets):

@@ -135,7 +135,6 @@ class PacketStream(object):
             if not header or header == b'\x00' * 9:
                 return
             flags, length, req = struct.unpack('>BIi', header)
-            logger.debug('flags=%s length=%s req=%s', flags, length, req)
 
             n_packets = ceil(length / 4096)
 

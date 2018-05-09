@@ -10,6 +10,9 @@ from ssb.muxrpc import MuxRPCAPI, MuxRPCAPIException
 from ssb.packet_stream import PacketStream, PSMessageType
 from ssb.util import load_ssb_secret
 
+import hashlib
+import base64
+
 
 api = MuxRPCAPI()
 
@@ -52,6 +55,9 @@ async def test_client():
         if msg.type.name == 'BUFFER':
             img_data += msg.data
         if msg.type.name == 'JSON' and msg.data == b'true':
+            print(base64.b64encode(hashlib.sha256(img_data).digest()))
+            assert base64.b64encode(hashlib.sha256(img_data).digest()
+                                    ) == b'H4MFPEWh7gAbZG/4TaSsaJI6Hi8lh7PItrHTnaxoSfg='
             with open('./Autonomouscar1956.jpg', 'wb') as f:
                 f.write(img_data)
 

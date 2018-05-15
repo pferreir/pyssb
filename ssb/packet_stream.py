@@ -131,7 +131,7 @@ class PacketStream(object):
     async def _read(self):
         try:
             header = await self.connection.read()
-            if not header:
+            if not header or header == b'\x00' * 9:
                 return
             flags, length, req = struct.unpack('>BIi', header)
 

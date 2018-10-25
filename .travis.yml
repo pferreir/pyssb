@@ -1,13 +1,28 @@
-os:
-  - linux
-  - osx
-dist: xenial
 language: python
-python:
-  - "3.5"
-  - "3.6"
-  - "3.7"
-  - "3.8-dev"
+matrix:
+    include:
+        - os: linux
+          python: 3.5
+          dist: xenial
+        - os: linux
+          python: 3.6
+          dist: xenial
+        - os: linux
+          python: 3.7
+          dist: xenial
+        - os: linux
+          python: 3.8-dev
+          dist: xenial
+        - os: osx
+          language: sh
+          before_install:
+            - brew update
+            - brew info python@3
+            - brew upgrade python@3
+          install:
+            - pip3 install .[tests]
+            - pip3 install coveralls
+
 install:
     - pip install .[tests]
     - pip install coveralls

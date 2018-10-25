@@ -58,7 +58,7 @@ class PSRequestHandler(object):
 
     def __await__(self):
         # wait until 'process' is called
-        yield from self.event.wait()
+        yield from self.event.wait().__await__()
         return self._msg
 
 

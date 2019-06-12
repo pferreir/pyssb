@@ -17,7 +17,7 @@ def tag(key):
 def load_ssb_secret():
     """Load SSB keys from ~/.ssb"""
     with open(os.path.expanduser('~/.ssb/secret')) as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.SafeLoader)
 
     if config['curve'] != 'ed25519':
         raise ConfigException('Algorithm not known: ' + config['curve'])

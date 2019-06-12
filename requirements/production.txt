@@ -1,5 +1,5 @@
 colorlog
 pynacl
-pyyaml
+pyyaml>=4.2b1
 secret-handshake
 simplejson

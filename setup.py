@@ -27,31 +27,31 @@ readme = open('README.rst').read()
 history = open('CHANGES.rst').read()
 
 tests_require = [
-    'check-manifest>=0.25',
-    'coverage>=4.0',
-    'isort>=4.2.2',
+    'check-manifest>=0.39',
+    'coverage>=4.5.3',
+    'isort>=4.3.20',
     'pep257>=0.7.0',
-    'pytest-cov>=1.8.0',
-    'pytest>=3.1.1',
-    'pytest-asyncio==0.6.0',
-    'asynctest==0.10.0',
-    'pytest-mock==1.6.2'
+    'pytest-cov>=2.7.1',
+    'pytest>=4.6.3',
+    'pytest-asyncio==0.10.0',
+    'asynctest==0.13.0',
+    'pytest-mock==1.10.4'
 ]
 
 extras_require = {
     'docs': [
-        'Sphinx>=1.6.2',
+        'Sphinx>=2.1.1',
     ],
     'tests': tests_require,
 }
 extras_require['all'] = sum((lst for lst in extras_require.values()), [])
 
 install_requires = [
-    'async-generator==1.8',
-    'pynacl==1.1.2',
-    'PyYAML==3.12',
+    'async-generator==1.10',
+    'pynacl==1.3.0',
+    'pyyaml>=4.2b1',
     'secret-handshake',
-    'simplejson==3.10.0'
+    'simplejson==3.16.0'
 ]
 
 setup_requires = [
@@ -62,7 +62,7 @@ packages = find_packages()
 
 setup(
     name='ssb',
-    version='0.1.0.dev2',
+    version='0.1.0.dev3',
     description=__doc__,
     long_description=(readme + '\n\n' + history),
     license='MIT',

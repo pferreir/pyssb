@@ -1,5 +1,5 @@
 colorlog
-pynacl
+pynacl>=1.1.2
 pyyaml>=4.2b1
 secret-handshake
 simplejson

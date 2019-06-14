@@ -13,16 +13,24 @@ matrix:
         - os: linux
           python: 3.8-dev
           dist: xenial
+        # shamelessly stolen from https://github.com/pyload/pyload
         - os: osx
           language: sh
+          env:
+            - HOMEBREW_NO_INSTALL_CLEANUP=1
+            - HOMEBREW_NO_ANALYTICS=1
+          before_cache:
+            - rm -f "$HOME/Library/Caches/pip/log/debug.log"
+          cache:
+            directories:
+              - "$HOME/Library/Caches/pip"
+          addons:
+            homebrew:
+              packages: python3
           before_install:
-            - brew update
-            - brew info python@3
-            - brew upgrade python@3
-          install:
-            - pip3 install .[tests]
-            - pip3 install coveralls
-
+            - python3 -m pip install --upgrade virtualenv
+            - virtualenv -p python3 --system-site-packages "$HOME/venv"
+            - source "$HOME/venv/bin/activate"
 install:
     - pip install .[tests]
     - pip install coveralls

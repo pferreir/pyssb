@@ -51,14 +51,13 @@ async def test_client():
         break
 
     img_data = b''
-    async for msg in api.call('blobs.get', ['&H4MFPEWh7gAbZG/4TaSsaJI6Hi8lh7PItrHTnaxoSfg=.sha256'], 'source'):
+    async for msg in api.call('blobs.get', ['&kqZ52sDcJSHOx7m4Ww80kK1KIZ65gpGnqwZlfaIVWWM=.sha256'], 'source'):
         if msg.type.name == 'BUFFER':
             img_data += msg.data
         if msg.type.name == 'JSON' and msg.data == b'true':
-            print(base64.b64encode(hashlib.sha256(img_data).digest()))
-            assert base64.b64encode(hashlib.sha256(img_data).digest()
-                                    ) == b'H4MFPEWh7gAbZG/4TaSsaJI6Hi8lh7PItrHTnaxoSfg='
-            with open('./Autonomouscar1956.jpg', 'wb') as f:
+            assert (base64.b64encode(hashlib.sha256(img_data).digest()) ==
+                    b'kqZ52sDcJSHOx7m4Ww80kK1KIZ65gpGnqwZlfaIVWWM=')
+            with open('./ub1k.jpg', 'wb') as f:
                 f.write(img_data)
 
 

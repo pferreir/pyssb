@@ -6,8 +6,6 @@ from time import time
 from math import ceil
 
 import simplejson
-from async_generator import async_generator, yield_
-
 from secret_handshake import SHSClient, SHSServer
 
 
@@ -32,13 +30,12 @@ class PSStreamHandler(object):
     async def stop(self):
         await self.queue.put(None)
 
-    @async_generator
     async def __aiter__(self):
         while True:
             elem = await self.queue.get()
             if not elem:
                 return
-            await yield_(elem)
+            yield elem
 
 
 class PSRequestHandler(object):
@@ -113,7 +110,6 @@ class PacketStream(object):
     def is_connected(self):
         return self.connection.is_connected
 
-    @async_generator
     async def __aiter__(self):
         while True:
             msg = await self.read()
@@ -121,7 +117,7 @@ class PacketStream(object):
                 return
             # filter out replies
             if msg.req >= 0:
-                await yield_(msg)
+                yield msg
 
     async def __await__(self):
         async for data in self:

@@ -48,7 +48,7 @@ extras_require['all'] = sum((lst for lst in extras_require.values()), [])
 
 install_requires = [
     'async-generator==1.10',
-    'pynacl==1.3.0',
+    'pynacl==1.6.2',
     'pyyaml>=4.2b1',
     'secret-handshake',
     'simplejson==3.16.0'
